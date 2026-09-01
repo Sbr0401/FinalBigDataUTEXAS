@@ -1,0 +1,470 @@
+\documentclass[12pt, letterpaper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath, amssymb}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{parskip}
+\usepackage{setspace}
+\usepackage{float}
+\usepackage{listings}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+
+\definecolor{burnt}{RGB}{191,87,0}
+\definecolor{lightgray}{RGB}{245,245,245}
+\definecolor{codeblue}{RGB}{0,90,160}
+
+\hypersetup{colorlinks=true, linkcolor=burnt, urlcolor=burnt, citecolor=burnt}
+
+\titleformat{\section}{\large\bfseries\color{burnt}}{}{0em}{}[\color{burnt}\titlerule]
+\titleformat{\subsection}{\normalsize\bfseries\color{burnt!80}}{}{0em}{}
+\titleformat{\subsubsection}{\normalsize\itshape}{}{0em}{}
+
+\lstset{
+  backgroundcolor=\color{lightgray},
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{codeblue}\bfseries,
+  commentstyle=\color{gray},
+  stringstyle=\color{burnt},
+  breaklines=true,
+  frame=single,
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  language=R
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\textcolor{burnt}{\small Big Data \& Data Mining}}
+\lhead{\textcolor{gray}{\small UT Austin}}
+\rfoot{\textcolor{gray}{\small Page \thepage}}
+\lfoot{\textcolor{gray}{\small sb74887 $\cdot$ ha26947}}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+
+\begin{document}
+
+\begin{titlepage}
+  \centering
+  \vspace*{2cm}
+  {\color{burnt}\rule{\linewidth}{2pt}}\\[0.5cm]
+  {\LARGE\bfseries Credit Card Customer Behavior Analysis}\\[0.3cm]
+  {\large Hypothesis Testing \& K-Means Clustering}\\[0.3cm]
+  {\color{burnt}\rule{\linewidth}{2pt}}
+  \vspace{1.5cm}
+  {\large
+    \begin{tabular}{rl}
+      \textbf{Course:}      & Big Data \& Data Mining \\[0.3em]
+      \textbf{Instructor:}  & Dr.\ Kia Teymourian \\[0.3em]
+      \textbf{Institution:} & The University of Texas at Austin \\[0.3em]
+      \textbf{Authors:}     & Hannia Ashley Alvarado Galv\'{a}n \quad \texttt{ha26947} \\
+                            & Santiago Basald\'{u}a Ram\'{i}rez \quad \texttt{sb74887} \\[0.3em]
+      \textbf{Date:}        & \today \\
+    \end{tabular}
+  }
+  \vspace{1.5cm}
+  \begin{abstract}
+    \noindent
+    This report documents the methodology, analysis, and results of a data analytics
+    project using a real-world credit card dataset containing 8{,}950 customer records
+    across 18 behavioral and financial variables. The project has two parts.
+    \textbf{Part 1} applies formal hypothesis testing to evaluate two claims:
+    (1) that customers who frequently use cash advances carry significantly higher
+    account balances (Welch's two-sample $t$-test), and (2) that account balance
+    is a strong predictor of credit limit (Pearson correlation --- debunked).
+    \textbf{Part 2} applies K-Means clustering to discover five distinct and
+    interpretable customer behavioral profiles. All analysis was performed in R
+    using \texttt{dplyr} for data wrangling and base R statistical functions.
+  \end{abstract}
+  \vfill
+  {\small\textit{Dataset: CC GENERAL --- Kaggle Credit Card Customer Segmentation}}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+\onehalfspacing
+
+% ============================================================================
+\section{Introduction}
+% ============================================================================
+
+Understanding how customers use credit cards is a fundamental problem in financial
+data science. Card issuers need to identify risky behaviors early, set appropriate
+credit limits, and segment customers to offer personalized services.
+
+This project addresses the central research question:
+
+\begin{center}
+  \textit{\large ``Do distinct patterns of credit card usage carry statistically
+  measurable differences, and can we identify natural customer profiles through
+  clustering?''}
+\end{center}
+
+The analysis is structured in two complementary parts:
+
+\begin{enumerate}
+  \item \textbf{Hypothesis Testing} --- Confirm or debunk specific claims about
+    customer financial behavior using formal statistical tests.
+  \item \textbf{K-Means Clustering} --- Apply unsupervised machine learning to
+    discover naturally occurring customer segments.
+\end{enumerate}
+
+% ============================================================================
+\section{Dataset Description}
+% ============================================================================
+
+The dataset is from Kaggle's \textit{Credit Card Customer Segmentation} collection.
+It contains \textbf{8{,}950 customer records} with \textbf{18 variables} covering
+spending behavior, balance management, and credit utilization over six months.
+
+\subsection{Variable Dictionary}
+
+\begin{table}[H]
+  \centering
+  \caption{Official Variable Definitions}
+  \renewcommand{\arraystretch}{1.3}
+  \begin{tabular}{>{\ttfamily\small}p{5.5cm} p{8cm}}
+    \toprule
+    \normalfont\textbf{Variable} & \textbf{Official Definition} \\
+    \midrule
+    CUST\_ID                       & Identification of Credit Card holder (Categorical) \\
+    BALANCE                        & Balance amount left in account to make purchases \\
+    BALANCE\_FREQUENCY             & How frequently Balance is updated; score 0--1 \\
+    PURCHASES                      & Amount of purchases made from account \\
+    ONEOFF\_PURCHASES              & Maximum purchase amount done in one-go \\
+    INSTALLMENTS\_PURCHASES        & Amount of purchases done in installment \\
+    CASH\_ADVANCE                  & Cash in advance given by the user \\
+    PURCHASES\_FREQUENCY           & How frequently purchases are made; score 0--1 \\
+    ONEOFFPURCHASES\_FREQUENCY     & How frequently one-go purchases happen; score 0--1 \\
+    PURCHASES\_INSTALLMENTS\_FREQ  & How frequently installment purchases are done; 0--1 \\
+    CASH\_ADVANCE\_FREQUENCY       & How frequently cash in advance is paid; score 0--1 \\
+    CASH\_ADVANCE\_TRX             & Number of transactions made with Cash in Advanced \\
+    PURCHASES\_TRX                 & Number of purchase transactions made \\
+    CREDIT\_LIMIT                  & Limit of Credit Card for user \\
+    PAYMENTS                       & Amount of Payment done by user \\
+    MINIMUM\_PAYMENTS              & Minimum amount of payments made by user \\
+    PRCFULLPAYMENT                 & Percent of full payment paid by user \\
+    TENURE                         & Tenure of credit card service for user \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Note on BALANCE Interpretation}
+
+Despite the official description saying ``balance left to make purchases,''
+\texttt{BALANCE} in this dataset represents the \textbf{outstanding debt balance}
+(what the customer owes). This is confirmed empirically: the correlation between
+\texttt{CASH\_ADVANCE} and \texttt{BALANCE} is positive ($r \approx 0.50$).
+If BALANCE were available credit, drawing cash advances would \textit{decrease} it.
+Since it \textit{increases}, BALANCE must represent accumulated debt.
+
+% ============================================================================
+\section{Data Wrangling with dplyr}
+% ============================================================================
+
+All data wrangling was performed using the \texttt{dplyr} package in R.
+
+\subsection{Cleaning}
+
+Rows with missing values in \texttt{CREDIT\_LIMIT} and \texttt{MINIMUM\_PAYMENTS}
+were removed. After cleaning, \textbf{8{,}636 records} remained (314 removed, $<$4\%).
+
+\subsection{New Variables}
+
+\begin{itemize}
+  \item \textbf{\texttt{CA\_Group}}: Binary label: \textit{Heavy CA} if
+    \texttt{CASH\_ADVANCE\_FREQUENCY} $\geq 0.25$, else \textit{Light CA}.
+    Threshold = 75th percentile of the frequency distribution.
+  \item \textbf{\texttt{LOG\_BALANCE}}: $\log(1 + \texttt{BALANCE})$ to handle
+    right-skewness (skewness $\approx 2.39$) for $t$-test normality requirements.
+\end{itemize}
+
+\begin{lstlisting}[caption={Data Wrangling Pipeline}]
+cc_clean <- cc %>%
+  filter(!is.na(CREDIT_LIMIT), !is.na(MINIMUM_PAYMENTS)) %>%
+  mutate(
+    CA_Group    = if_else(CASH_ADVANCE_FREQUENCY >= 0.25,
+                          "Heavy CA", "Light CA"),
+    LOG_BALANCE = log1p(BALANCE)
+  )
+\end{lstlisting}
+
+% ============================================================================
+\section{Part 1: Hypothesis Testing}
+% ============================================================================
+
+All tests use significance level $\alpha = 0.05$.
+
+% ---------------------------------------------------------------------------
+\subsection{H1: Cash-Advance Users Carry Higher Balances}
+% ---------------------------------------------------------------------------
+
+\subsubsection{Formal Statement}
+
+\[
+  H_0: \mu_{\text{Heavy CA}} = \mu_{\text{Light CA}}
+  \qquad
+  H_1: \mu_{\text{Heavy CA}} > \mu_{\text{Light CA}}
+  \quad\text{(one-tailed)}
+\]
+
+Where $\mu$ denotes the mean account balance of each group.
+
+\subsubsection{Why Welch's $t$-Test?}
+
+The standard two-sample $t$-test assumes equal variances. Heavy CA users have a
+wider spread of balances. Welch's modification uses separate variance estimates
+per group and adjusted degrees of freedom --- the safe default for unequal variances.
+
+\begin{lstlisting}[caption={H1 Test}]
+t_result_h1 <- t.test(heavy, light,
+                       alternative = "greater",
+                       var.equal   = FALSE)
+\end{lstlisting}
+
+\subsubsection{Results}
+
+\begin{table}[H]
+  \centering
+  \caption{H1 Results}
+  \begin{tabular}{lc}
+    \toprule
+    \textbf{Statistic} & \textbf{Value} \\
+    \midrule
+    $t$-statistic            & $\approx 28$ \\
+    Degrees of freedom       & $\approx 2{,}889$ \\
+    $p$-value                & $< 2.2\times10^{-16}$ \\
+    95\% CI lower bound      & $>\$1{,}000$ \\
+    Decision                 & \textbf{REJECT $H_0$} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\textbf{Conclusion:} Heavy CA users carry significantly higher balances.
+\texttt{CASH\_ADVANCE\_FREQUENCY} is a reliable credit-risk signal.
+
+% ---------------------------------------------------------------------------
+\subsection{H2: Balance Strongly Predicts Credit Limit (Debunk)}
+% ---------------------------------------------------------------------------
+
+\subsubsection{The Intuitive Claim}
+
+``Customers with higher balances must have higher credit limits.''
+
+\subsubsection{Formal Statement}
+
+\[
+  H_0: \rho = 0
+  \qquad
+  H_1: \rho \neq 0 \text{ (strong positive correlation)}
+\]
+
+\subsubsection{Debunk Strategy}
+
+\begin{enumerate}
+  \item \textbf{Moderate $r$} --- $r^2$ must be large to call it ``strong.''
+  \item \textbf{Outliers} --- IQR rule: $>$666 balance outliers distort the pattern.
+  \item \textbf{Right-skewed distribution} --- Skewness $\approx 2.39$ violates
+    the normality assumption of Pearson correlation.
+\end{enumerate}
+
+\begin{lstlisting}[caption={H2 Test}]
+cor_h2 <- cor.test(cc_clean$BALANCE, cc_clean$CREDIT_LIMIT,
+                   method = "pearson")
+\end{lstlisting}
+
+\subsubsection{Results}
+
+\begin{table}[H]
+  \centering
+  \caption{H2 Results}
+  \begin{tabular}{lc}
+    \toprule
+    \textbf{Statistic} & \textbf{Value} \\
+    \midrule
+    $r$ (Pearson)              & $\approx 0.54$ \\
+    $r^2$ (Variance explained) & $\approx 29\%$ \\
+    $p$-value                  & $< 2.2\times10^{-16}$ \\
+    BALANCE outliers (IQR)     & $>666$ customers \\
+    Decision                   & \textbf{DEBUNKED} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsubsection{Key Lesson: Significance $\neq$ Practical Strength}
+
+With $n = 8{,}636$, even moderate correlations produce near-zero $p$-values.
+BALANCE explains only \textbf{29\%} of CREDIT\_LIMIT variance. The other 71\%
+depends on income, employment history, and credit score --- factors not in this
+dataset. Banks set limits \textit{prospectively} based on repayment capacity,
+not reactively based on current debt.
+
+\textbf{Conclusion: Debunked.} BALANCE is not a strong predictor of CREDIT\_LIMIT.
+
+% ============================================================================
+\section{Part 2: K-Means Clustering}
+% ============================================================================
+
+\subsection{Motivation}
+
+Hypothesis testing tested specific claims. Clustering asks an open question:
+\textit{``Can we find natural customer groups in the data?''}
+K-Means is \textbf{unsupervised}: no predefined labels are required.
+
+\subsection{Variable Selection}
+
+Eight variables were chosen for low inter-correlation and behavioral relevance:
+BALANCE, PURCHASES, CASH\_ADVANCE, CREDIT\_LIMIT, PAYMENTS,
+PURCHASES\_FREQUENCY, CASH\_ADVANCE\_FREQUENCY, PRCFULLPAYMENT.
+
+High-redundancy pairs (e.g., PURCHASES and ONEOFF\_PURCHASES, $r\approx0.92$)
+were excluded.
+
+\subsection{Standardization}
+
+K-Means uses Euclidean distance. Dollar-valued variables (BALANCE: 0--19{,}000)
+would dominate frequency variables (0--1) without standardization.
+All variables were rescaled to mean 0, standard deviation 1 using \texttt{scale()}.
+
+\subsection{Choosing K = 5}
+
+$K \in \{2,\ldots,8\}$ were evaluated via the elbow method (within-cluster inertia).
+$K=5$ was selected: it falls at the elbow and produces five \textbf{interpretable}
+business profiles.
+
+\begin{lstlisting}[caption={K-Means Setup}]
+X_scaled <- scale(cc_clust)
+set.seed(123)
+km <- kmeans(X_scaled, centers = 5, nstart = 25, iter.max = 300)
+\end{lstlisting}
+
+\texttt{nstart = 25} runs 25 random initializations; the best result is kept.
+
+\subsection{Cluster Profiles}
+
+\begin{table}[H]
+  \centering
+  \caption{Five Customer Profiles}
+  \renewcommand{\arraystretch}{1.35}
+  \begin{tabular}{p{4.5cm} c p{6.5cm}}
+    \toprule
+    \textbf{Cluster} & \textbf{\%} & \textbf{Key Characteristics} \\
+    \midrule
+    Low-Activity Customers  & $\sim$34\% & Very low purchases and frequency; minimal card use \\
+    Regular Purchasers      & $\sim$26\% & Frequent purchases; very low cash-advance use \\
+    Full-Payment Customers  & $\sim$18\% & Consistently pay full balance; lowest debt \\
+    High CA Users           & $\sim$20\% & High balance driven by cash advances; highest risk \\
+    High-Value Customers    & $\sim$1.3\% & Extremely high spending and credit limit ($n\approx112$) \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{description}
+  \item[Low-Activity] Largest segment. Likely keep the card for emergencies or
+    to maintain an open credit line for their credit score.
+  \item[Regular Purchasers] Active, responsible users. Purchase frequently,
+    avoid cash advances, pay regularly.
+  \item[Full-Payment] Most financially disciplined. Pay entire balance most months.
+    Corroborates $r(\texttt{PRCFULLPAYMENT}, \texttt{BALANCE})\approx-0.32$.
+  \item[High CA Users] Highest-risk group. Compounding interest from cash advances
+    drives up their balance (independently corroborates H1).
+  \item[High-Value] Tiny elite ($n\approx112$, 1.3\%). Likely high-income
+    individuals or business owners with outsized financial impact.
+\end{description}
+
+% ============================================================================
+\section{Key Correlations}
+% ============================================================================
+
+\begin{table}[H]
+  \centering
+  \caption{Most Important Bivariate Correlations}
+  \begin{tabular}{lcc}
+    \toprule
+    \textbf{Variable Pair} & \textbf{$r$} & \textbf{Interpretation} \\
+    \midrule
+    PURCHASES $\leftrightarrow$ PAYMENTS          & $+0.60$ & Spend more, pay more \\
+    CASH\_ADVANCE $\leftrightarrow$ BALANCE       & $+0.50$ & CA use accumulates debt \\
+    PRCFULLPAYMENT $\leftrightarrow$ BALANCE      & $-0.32$ & Full payers carry less debt \\
+    PURCHASES $\leftrightarrow$ ONEOFF\_PURCHASES & $+0.92$ & Redundant (excluded from clustering) \\
+    BALANCE $\leftrightarrow$ CREDIT\_LIMIT       & $+0.54$ & Moderate only (H2 tested) \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+% ============================================================================
+\section{Exploratory Data Analysis}
+% ============================================================================
+
+\begin{itemize}
+  \item \textbf{8{,}950 customers}, 18 variables. All major financial variables
+    are strongly right-skewed:
+    \begin{itemize}
+      \item PURCHASES: skewness $= 8.14$
+      \item CASH\_ADVANCE: skewness $= 5.17$
+      \item BALANCE: skewness $= 2.39$
+    \end{itemize}
+  \item Mean $\gg$ Median for most variables: a small group of high-activity
+    customers pulls the average upward.
+  \item Extreme values were \textbf{kept}: they represent real behavior and
+    define the High-Value and High CA clusters.
+\end{itemize}
+
+% ============================================================================
+\section{Conclusions}
+% ============================================================================
+
+\subsection{Part 1: Hypothesis Testing}
+
+\begin{itemize}
+  \item \textbf{H1 Confirmed} --- Heavy CA users carry significantly higher balances
+    ($p \ll 0.05$, $t\approx28$). \texttt{CASH\_ADVANCE\_FREQUENCY} is a reliable
+    financial risk signal.
+  \item \textbf{H2 Debunked} --- Despite a near-zero $p$-value, BALANCE explains
+    only $\approx29\%$ of CREDIT\_LIMIT variance ($r\approx0.54$, $r^2\approx0.29$).
+    Statistical significance does not imply practical predictive strength.
+\end{itemize}
+
+\subsection{Part 2: Clustering}
+
+K-Means found \textbf{five interpretable customer profiles}. These are exploratory,
+not official categories. The High CA Users cluster independently confirms H1 by
+showing the highest average balance alongside maximum cash-advance activity.
+
+\subsection{Key Methodological Lesson}
+
+The most important takeaway: \textbf{significance $\neq$ practical relevance}.
+With large $n$, trivially small effects become significant. Always report
+$r^2$ or Cohen's $d$ alongside the $p$-value.
+
+% ============================================================================
+\section{References}
+% ============================================================================
+
+\begin{itemize}
+  \item \textbf{Dataset:} CC GENERAL --- Kaggle.
+    \url{https://www.kaggle.com/datasets/arjunbhasin2013/ccdata}
+  \item \textbf{R Core Team} (2024). R: A language and environment for statistical
+    computing. R Foundation for Statistical Computing.
+  \item \textbf{Wickham, H. et al.} (2023). \textit{dplyr}: A Grammar of Data
+    Manipulation. R package version 1.1.4.
+  \item \textbf{Welch, B.~L.} (1947). The generalization of Student's problem.
+    \textit{Biometrika}, 34(1--2), 28--35.
+  \item \textbf{MacQueen, J.} (1967). Some methods for classification and analysis
+    of multivariate observations. \textit{Proc. Fifth Berkeley Symposium}, 1, 281--297.
+\end{itemize}
+
+\vspace{2em}
+\begin{center}
+  \color{gray}\rule{0.5\linewidth}{0.4pt}\\[0.3em]
+  {\small Big Data \& Data Mining --- Dr.\ Kia Teymourian ---
+  The University of Texas at Austin}\\
+  {\small \texttt{sb74887} $\cdot$ \texttt{ha26947}}
+\end{center}
+
+\end{document}

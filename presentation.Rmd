@@ -1,0 +1,515 @@
+---
+title: "Credit Card Customer Behavior"
+subtitle: "Hypothesis Testing + Clustering Extension"
+author: "Hannia  Ashley Alvarado Galván - Santiago Basaldúa Ramírez"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  beamer_presentation:
+    theme: "CambridgeUS"
+    colortheme: "default"
+    fonttheme: "structurebold"
+    slide_level: 2
+    keep_tex: true
+classoption: "aspectratio=169"
+header-includes:
+  - \usepackage{booktabs}
+  - \usepackage{xcolor}
+  - \definecolor{burnt}{RGB}{191,87,0}
+  - \definecolor{bggray}{RGB}{245,245,245}
+  - \setbeamercolor{palette primary}{bg=burnt,fg=white}
+  - \setbeamercolor{palette secondary}{bg=burnt!80,fg=white}
+  - \setbeamercolor{palette tertiary}{bg=burnt!60,fg=white}
+  - \setbeamercolor{palette quaternary}{bg=burnt,fg=white}
+  - \setbeamercolor{title}{fg=white,bg=burnt}
+  - \setbeamercolor{subtitle}{fg=white!90}
+  - \setbeamercolor{frametitle}{fg=white,bg=burnt}
+  - \setbeamercolor{block title}{fg=white,bg=burnt}
+  - \setbeamercolor{block body}{fg=black,bg=bggray}
+  - \setbeamercolor{block title alerted}{fg=white,bg=burnt!80}
+  - \setbeamercolor{block body alerted}{fg=black,bg=burnt!10}
+  - \setbeamercolor{itemize item}{fg=burnt}
+  - \setbeamercolor{itemize subitem}{fg=burnt!70}
+  - \setbeamerfont{frametitle}{size=\large,series=\bfseries}
+  - \setbeamerfont{title}{size=\LARGE,series=\bfseries}
+  - \setbeamerfont{block title}{series=\bfseries}
+  - \setbeamertemplate{itemize item}[circle]
+  - \setbeamertemplate{navigation symbols}{}
+  - \setbeamertemplate{footline}[frame number]
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo    = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  comment = ""
+)
+
+library(dplyr)
+
+# ── Load and clean data ────────────────────────────────────────
+cc <- read.csv("../data.csv", stringsAsFactors = FALSE)
+
+cc_clean <- cc %>%
+  filter(!is.na(CREDIT_LIMIT), !is.na(MINIMUM_PAYMENTS)) %>%
+  mutate(
+    CA_Group    = if_else(CASH_ADVANCE_FREQUENCY >= 0.25,
+                          "Heavy CA", "Light CA"),
+    LOG_BALANCE = log1p(BALANCE)
+  )
+
+alpha <- 0.05
+
+# ── H1 groups ─────────────────────────────────────────────────
+heavy <- cc_clean$BALANCE[cc_clean$CA_Group == "Heavy CA"]
+light <- cc_clean$BALANCE[cc_clean$CA_Group == "Light CA"]
+
+# ── Pre-run hypothesis tests ───────────────────────────────────
+t_result_h1 <- t.test(heavy, light,
+                      alternative = "greater", var.equal = FALSE)
+cor_h2      <- cor.test(cc_clean$BALANCE, cc_clean$CREDIT_LIMIT,
+                        method = "pearson")
+
+# ── Clustering setup ──────────────────────────────────────────
+clust_vars <- c("BALANCE","PURCHASES","CASH_ADVANCE","CREDIT_LIMIT",
+                "PAYMENTS","PURCHASES_FREQUENCY",
+                "CASH_ADVANCE_FREQUENCY","PRC_FULL_PAYMENT")
+
+cc_clust <- cc_clean %>% select(all_of(clust_vars)) %>% na.omit()
+X_scaled <- scale(cc_clust)
+
+set.seed(123)
+km <- kmeans(X_scaled, centers = 5, nstart = 25, iter.max = 300)
+cc_clust$Cluster <- km$cluster
+
+profiles <- cc_clust %>%
+  group_by(Cluster) %>%
+  summarise(
+    n       = n(),
+    pct     = round(n() / nrow(cc_clust) * 100, 1),
+    m_bal   = round(mean(BALANCE),               0),
+    m_purch = round(mean(PURCHASES),             0),
+    m_ca    = round(mean(CASH_ADVANCE),          0),
+    m_pf    = round(mean(PURCHASES_FREQUENCY),   2),
+    m_prc   = round(mean(PRC_FULL_PAYMENT),      2)
+  )
+
+# Auto-label clusters by profile characteristics
+lbl <- rep("", nrow(profiles))
+lbl[which.max(profiles$m_purch)] <- "High-Value Customers"
+lbl[which.max(profiles$m_prc)]   <- "Full-Payment Customers"
+lbl[which.max(profiles$m_ca)]    <- "High Cash-Advance Users"
+rem <- which(lbl == "")
+if (profiles$m_pf[rem[1]] > profiles$m_pf[rem[2]]) {
+  lbl[rem[1]] <- "Regular Purchasers"
+  lbl[rem[2]] <- "Low-Activity Customers"
+} else {
+  lbl[rem[2]] <- "Regular Purchasers"
+  lbl[rem[1]] <- "Low-Activity Customers"
+}
+profiles$Name <- lbl
+
+present_order <- c("Low-Activity Customers","Regular Purchasers",
+                   "Full-Payment Customers","High Cash-Advance Users",
+                   "High-Value Customers")
+profiles <- profiles[match(present_order, profiles$Name), ]
+
+short_clust <- c("Low-\nActivity","Regular\nPurchasers",
+                 "Full-\nPayment","High CA\nUsers","High-\nValue")
+clust_cols  <- c("#F0C040","#BF5700","#4A90D9","#E74C3C","#55A868")
+```
+
+## Project Overview
+
+\begin{block}{Research Question}
+\textit{Do distinct patterns of credit card usage carry statistically measurable
+differences, and can we identify natural customer profiles through clustering?}
+\end{block}
+
+\vspace{0.4em}
+
+\begin{tabular}{lll}
+\toprule
+ & \textbf{Part 1} & \textbf{Part 2} \\
+\midrule
+Approach & Hypothesis Testing & K-Means Clustering \\
+Tools & \texttt{t.test()}, \texttt{cor.test()} & \texttt{kmeans()}, \texttt{dplyr} \\
+Goal & Confirm or debunk claims & Discover customer groups \\
+Dataset & \multicolumn{2}{l}{CC GENERAL --- 8,950 customers, 18 variables} \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.3em}
+\textbf{Significance level for all tests:} $\alpha = 0.05$
+
+## Data Wrangling with `dplyr`
+
+```{r wrangling-show, echo=TRUE}
+cc_clean <- cc %>%
+  filter(!is.na(CREDIT_LIMIT), !is.na(MINIMUM_PAYMENTS)) %>%
+  mutate(
+    CA_Group    = if_else(CASH_ADVANCE_FREQUENCY >= 0.25,
+                          "Heavy CA", "Light CA"),
+    LOG_BALANCE = log1p(BALANCE)
+  )
+```
+
+\vspace{0.5em}
+
+```{r wrangling-results}
+cat("Rows after cleaning:", nrow(cc_clean), "\n")
+print(table(cc_clean$CA_Group))
+```
+
+## Part 1: Hypothesis Testing --- Overview
+
+\begin{block}{H1 -- Heavy Cash-Advance Users Carry Higher Balances}
+Test: One-tailed Welch's two-sample $t$-test \hfill \textbf{Expected: Confirmed}
+\end{block}
+
+\begin{alertblock}{H2 -- Balance Strongly Predicts Credit Limit (Debunk)}
+Test: Pearson correlation \texttt{cor.test()} \hfill \textbf{Expected: Debunked}
+\end{alertblock}
+
+\vspace{0.5em}
+
+| | H1 | H2 |
+|--|--|--|
+| **Null Hypothesis** | $\mu_{\text{Heavy}} = \mu_{\text{Light}}$ | $\rho = 0$ |
+| **Alternative** | $\mu_{\text{Heavy}} > \mu_{\text{Light}}$ | $\rho \neq 0$ (strong) |
+| **Key metric** | $t$-statistic, $p$-value | $r$, $r^2$ |
+
+## H1: Formal Statement
+
+$\boldsymbol{H_0: \mu_{\text{Heavy CA}} = \mu_{\text{Light CA}}}$ ($\mu_{\text{Heavy CA}}$ is the average balance of Heavy CA users, and it is equal to $\mu_{\text{Light CA}}$ which is the average balance of Light CA users)
+
+\vspace{0.5em}
+
+$\boldsymbol{H_1: \mu_{\text{Heavy CA}} > \mu_{\text{Light CA}}}$ ($\mu_{\text{Heavy CA}}$ is the average balance of Heavy CA users, and it is greater than $\mu_{\text{Light CA}}$ which is the average balance of Light CA users)
+
+\begin{block}{Rationale}
+The correlation matrix shows
+$r(\texttt{BALANCE},\,\texttt{CASH\_ADVANCE\_FREQUENCY}) \approx 0.449$.
+Customers who rely on cash advances tend to accumulate higher account balances
+(\texttt{BALANCE} = balance amount left in account to make purchases) ---
+because cash advances incur high fees and interest immediately upon withdrawal.
+\end{block}
+
+\vspace{0.3em}
+**Test chosen:** Welch's two-sample $t$-test (`var.equal = FALSE`) --- safe default when group variances differ.
+
+## H1: Exploratory Plots
+
+```{r h1-plots, fig.width=10, fig.height=4.8, out.width='100%'}
+par(mfrow = c(1, 2), mar = c(4, 4, 3, 1), bg = "white")
+
+boxplot(BALANCE ~ CA_Group, data = cc_clean,
+        col = c("#BF5700","#4A90D9"), border = c("#8B3D00","#1A5FA8"),
+        main = "Balance by Group", xlab = "Cash-Advance Group",
+        ylab = "Balance (USD)", outline = FALSE, lwd = 1.4)
+
+hist(log1p(heavy), col = adjustcolor("#BF5700", 0.65), breaks = 40,
+     main = "Log-Balance Distribution", xlab = "log(1 + Balance)",
+     xlim = c(0, 12), border = "white")
+hist(log1p(light), col = adjustcolor("#4A90D9", 0.55),
+     breaks = 40, add = TRUE, border = "white")
+legend("topright", legend = c("Heavy CA","Light CA"),
+       fill = c("#BF5700","#4A90D9"), bty = "n", cex = 0.9)
+```
+
+## H1: Welch's *t*-Test
+
+```{r h1-test-show, echo=TRUE}
+t_result_h1 <- t.test(
+  x           = heavy,
+  y           = light,
+  alternative = "greater",  # one-tailed: Heavy > Light
+  var.equal   = FALSE       # Welch's t-test
+)
+```
+
+```{r h1-test-results}
+cat(sprintf("t  = %.3f\n",    t_result_h1$statistic))
+cat(sprintf("df = %.1f\n",    t_result_h1$parameter))
+cat(sprintf("p  = %.2e\n",    t_result_h1$p.value))
+cat(sprintf("95%% CI (lower bound): $%.0f\n", t_result_h1$conf.int[1]))
+```
+
+## H1: Decision & Interpretation
+
+```{r h1-decision}
+cat(sprintf("t-statistic : %.3f\n",   t_result_h1$statistic))
+cat(sprintf("p-value     : %.2e\n",   t_result_h1$p.value))
+cat(sprintf("95%% CI lower bound: $%.2f\n", t_result_h1$conf.int[1]))
+cat(sprintf("Decision    : %s\n",
+            ifelse(t_result_h1$p.value < alpha,
+                   "REJECT H0", "FAIL TO REJECT H0")))
+```
+
+\vspace{0.4em}
+
+\begin{block}{Interpretation}
+The large positive $t$ and the near-zero $p$-value provide strong statistical
+evidence: heavy cash-advance users carry \textbf{significantly higher} balances on average.
+CA frequency is a \textbf{measurable financial risk signal}.
+\end{block}
+
+## H2 (Debunk): The Intuitive Claim
+
+\begin{alertblock}{Common Intuition}
+``Customers with higher balances must have higher credit limits ---
+the bank gave them more credit, so they use more of it.''
+\end{alertblock}
+
+\vspace{0.5em}
+
+$\boldsymbol{H_0: \rho = 0}$ ($\rho$ is the correlation between BALANCE and CREDIT\_LIMIT, and it is equal to zero, meaning there is no relationship)
+
+\vspace{0.5em}
+
+$\boldsymbol{H_1: \rho \neq 0}$ ($\rho$ is the correlation between BALANCE and CREDIT\_LIMIT, and it is not equal to zero, meaning there is a strong positive relationship)
+
+\vspace{0.3em}
+**Debunk strategy --- three prongs:**
+
+1. **Moderate $r$** from `cor.test()` --- $r^2$ explains only $\approx 29\%$ of variance
+2. **Severe outliers** in `boxplot()` that distort the visual pattern
+3. **Right-skewed distribution** in `hist()` --- normality assumption violated
+
+## H2: Scatterplot & Distribution
+
+```{r h2-scatter, fig.width=10, fig.height=4.8, out.width='100%'}
+par(mfrow = c(1, 2), mar = c(4, 4, 3, 1), bg = "white")
+
+plot(cc_clean$BALANCE, cc_clean$CREDIT_LIMIT,
+     pch = 20, cex = 0.35, col = adjustcolor("#BF5700", 0.30),
+     main = "Balance vs. Credit Limit",
+     xlab = "Balance (USD)", ylab = "Credit Limit (USD)")
+abline(lm(CREDIT_LIMIT ~ BALANCE, data = cc_clean),
+       col = "#1A1A1A", lwd = 2, lty = 2)
+
+hist(cc_clean$BALANCE, col = adjustcolor("#BF5700", 0.70),
+     breaks = 60, main = "Balance - Highly Right-Skewed",
+     xlab = "Balance (USD)", border = "white")
+```
+
+## H2: Outlier Detection
+
+```{r h2-outliers, fig.width=10, fig.height=4.2, out.width='100%'}
+par(mfrow = c(1, 2), mar = c(4, 4, 3, 1), bg = "white")
+
+boxplot(cc_clean$BALANCE, col = "#BF5700", border = "#8B3D00",
+        main = "Balance - Outliers", ylab = "Balance (USD)", lwd = 1.3)
+
+boxplot(cc_clean$CREDIT_LIMIT, col = "#F0C040", border = "#8B6800",
+        main = "Credit Limit - Distribution",
+        ylab = "Credit Limit (USD)", lwd = 1.3)
+```
+
+```{r h2-outlier-count}
+q3  <- quantile(cc_clean$BALANCE, 0.75)
+iqr <- IQR(cc_clean$BALANCE)
+cat("Balance outliers (IQR rule):",
+    sum(cc_clean$BALANCE > q3 + 1.5 * iqr), "customers\n")
+```
+
+## H2: Pearson Correlation Test & Debunk
+
+```{r h2-cor-show, echo=TRUE}
+cor_h2 <- cor.test(cc_clean$BALANCE, cc_clean$CREDIT_LIMIT,
+                   method = "pearson")
+```
+
+```{r h2-cor-results}
+r_val <- as.numeric(cor_h2$estimate)
+cat(sprintf("r (Pearson)         : %.4f\n",    r_val))
+cat(sprintf("r^2 (variance expl.): %.2f%%\n", r_val^2 * 100))
+cat(sprintf("p-value             : %.2e\n",    cor_h2$p.value))
+cat(sprintf("|r| < 0.35?         : %s  -> DEBUNKED\n",
+            ifelse(abs(r_val) < 0.35, "YES", "NO")))
+```
+
+\begin{alertblock}{Key Lesson: Significance $\neq$ Practical Strength}
+With $n = 8{,}950$, even a moderate correlation gives a near-zero $p$-value.
+The actual $r \approx 0.54$ seems moderate, but $r^2 \approx 0.29$ means
+BALANCE explains only $\approx 29\%$ of CREDIT\_LIMIT variance.
+Banks set limits \textit{prospectively} (based on income and credit history),
+not in response to current balance --- the strong-prediction claim is \textbf{false}.
+\end{alertblock}
+
+## Key Correlations Found
+
+\begin{block}{Three most important relationships}
+\begin{itemize}
+  \item \textbf{PURCHASES and PAYMENTS} $r \approx 0.60$ (strong positive) ---
+        customers who spend more also tend to pay more.
+  \item \textbf{CASH\_ADVANCE and BALANCE} $r \approx 0.50$ (moderate positive) ---
+        heavier cash-advance use is associated with a higher account balance.
+  \item \textbf{PRCFULLPAYMENT and BALANCE} $r \approx -0.32$ (negative) ---
+        customers who pay in full carry much lower account balances.
+\end{itemize}
+\end{block}
+
+\vspace{0.4em}
+The matrix also revealed high redundancy between some pairs (e.g., PURCHASES and
+ONEOFF\_PURCHASES: $r \approx 0.92$), which guided the selection of
+non-overlapping variables for clustering.
+
+## Correlation Matrix
+
+```{r cor-heatmap, fig.width=10, fig.height=4.8, out.width='100%'}
+short_names <- c("BAL","PURCH","CA","CL","PAY","PF","CAF","FULL")
+cor_mat <- cor(cc_clust[, clust_vars], use = "pairwise.complete.obs")
+colnames(cor_mat) <- rownames(cor_mat) <- short_names
+n <- length(short_names)
+pal <- colorRampPalette(c("#2166AC","white","#BF5700"))(200)
+
+layout(matrix(c(1,2), 1, 2), widths = c(4.2, 0.8))
+
+par(mar = c(3.5, 3.5, 2.5, 0.5), bg = "white")
+image(1:n, 1:n, t(cor_mat[n:1, ]),
+      col = pal, zlim = c(-1,1),
+      axes = FALSE, xlab = "", ylab = "")
+axis(1, 1:n, short_names, las = 1, cex.axis = 0.80, tick = FALSE)
+axis(2, 1:n, rev(short_names), las = 1, cex.axis = 0.80, tick = FALSE)
+for (i in 1:n) for (j in 1:n) {
+  val  <- cor_mat[n+1-j, i]
+  tcol <- if (abs(val) > 0.55) "white" else "black"
+  text(i, j, sprintf("%.2f", val), cex = 0.62, col = tcol)
+}
+box(col = "gray70")
+title("Correlation Matrix -- Clustering Variables", cex.main = 1.05)
+
+par(mar = c(3.5, 0.5, 2.5, 2.5))
+image(1, seq(-1,1,length.out=200),
+      matrix(seq(-1,1,length.out=200),1,200),
+      col = pal, axes = FALSE, xlab = "", ylab = "")
+axis(4, at = c(-1,-0.5,0,0.5,1),
+     labels = c("-1.0","-0.5","0.0","0.5","1.0"),
+     las = 1, cex.axis = 0.70, tick = TRUE)
+box(col = "gray70")
+```
+
+## Part 2: Clustering Extension
+
+\begin{center}
+\vspace{0.5em}
+\large\textbf{Complementary Question:}\\[0.5em]
+\normalsize
+The hypothesis tests confirmed specific claims about individual variables.\\[0.3em]
+Now we ask: \textit{Can we find natural customer groups in the data?}\\[0.6em]
+\textbf{Method:} K-Means Clustering --- an exploratory, unsupervised technique\\[0.3em]
+\textbf{Input:} 8 financial variables, standardised\\[0.3em]
+\textbf{Result:} 5 interpretable customer profiles
+\end{center}
+
+## EDA: Key Findings
+
+\begin{columns}[T]
+
+\begin{column}{0.42\textwidth}
+\vspace{0.2em}
+\begin{itemize}
+  \item \textbf{8,950 customers}, 18 variables
+  \item All major financial variables are \textbf{strongly right-skewed}:
+  \begin{itemize}
+    \item PURCHASES: skew = 8.14
+    \item CASH\_ADVANCE: skew = 5.17
+    \item BALANCE: skew = 2.39
+  \end{itemize}
+  \item Mean $\gg$ Median for most variables --- a small group of high-activity customers pulls the average up
+  \item Extreme values \textbf{kept} --- they represent real, meaningful customer behavior
+\end{itemize}
+\end{column}
+
+\begin{column}{0.56\textwidth}
+```{r eda-hist, fig.width=5.5, fig.height=3.8, out.width='100%'}
+par(mar = c(4, 4, 2.5, 1), bg = "white")
+hist(cc_clean$BALANCE, breaks = 50,
+     col = adjustcolor("#BF5700", 0.80), border = "white",
+     main = "Distribution of BALANCE",
+     xlab = "Balance (USD)", ylab = "Number of Customers",
+     cex.main = 1, cex.axis = 0.85, cex.lab = 0.9)
+abline(v = mean(cc_clean$BALANCE),   col = "black", lwd = 2, lty = 1)
+abline(v = median(cc_clean$BALANCE), col = "#4A90D9",  lwd = 2, lty = 2)
+legend("topright",
+       legend = c(sprintf("Mean   $%.0f", mean(cc_clean$BALANCE)),
+                  sprintf("Median $%.0f", median(cc_clean$BALANCE))),
+       col = c("black","#4A90D9"), lty = c(1,2), lwd = 2,
+       bty = "n", cex = 0.80)
+```
+\end{column}
+
+\end{columns}
+
+## Why K-Means Clustering?
+
+\begin{alertblock}{The dataset has no predefined customer categories}
+The EDA showed that customers behave very differently from one another.
+Clustering groups observations that share similar characteristics,
+without requiring a predefined label.
+\end{alertblock}
+
+\vspace{0.3em}
+
+\begin{itemize}
+  \item \textbf{8 variables} selected: BALANCE, PURCHASES, CASH\_ADVANCE, CREDIT\_LIMIT,
+        PAYMENTS, PURCHASES\_FREQUENCY, CASH\_ADVANCE\_FREQUENCY, PRCFULLPAYMENT
+  \item Variables were \textbf{standardised} so that dollar-valued variables do not
+        dominate frequency variables (0 to 1 scale)
+  \item \textbf{K = 5} chosen by comparing several values --- five groups provide
+        a useful balance between separation and interpretability
+  \item K-Means is used here as an \textbf{exploratory complement} to the
+        hypothesis-testing analysis above
+\end{itemize}
+
+## K-Means Result: 5 Customer Groups
+
+```{r cluster-table, results='asis'}
+tbl <- data.frame(
+  Name = profiles$Name,
+  Pct  = paste0(profiles$pct, "%"),
+  Key  = c(
+    "Very low purchases, low purchase frequency",
+    "Frequent purchases, very low cash-advance use",
+    "Pays full balance consistently, lowest debt carried",
+    "Very high balance driven by cash advances",
+    "Extremely high spending and credit limit (n = 112)"
+  )
+)
+colnames(tbl) <- c("Cluster Name","% Customers","Key Characteristics")
+knitr::kable(tbl, booktabs = TRUE, linesep = "",
+             format = "latex", align = c("l","c","l")) |> cat()
+```
+
+## Conclusions
+
+\begin{block}{Part 1: Hypothesis Testing}
+\begin{itemize}
+  \item \textbf{H1 Confirmed} --- Heavy cash-advance users carry significantly higher balances ($p \ll 0.05$). CASH\_ADVANCE\_FREQUENCY is a reliable credit-risk signal.
+  \item \textbf{H2 Debunked} --- Despite $p < 0.05$, BALANCE explains only $\approx 29\%$ of CREDIT\_LIMIT variance ($r \approx 0.54$, $r^2 \approx 0.29$). Statistical significance does not imply practical strength.
+\end{itemize}
+\end{block}
+
+\vspace{0.3em}
+
+\begin{alertblock}{Part 2: Clustering Extension}
+K-Means identified \textbf{five interpretable customer profiles} that summarise
+different financial behaviors across the 8,950 customers.
+These are \textbf{exploratory profiles, not official categories} ---
+they complement and contextualise the hypothesis-testing findings above.
+\end{alertblock}
+
+## References
+
+\vspace{0.5em}
+
+- **Dataset:** CC GENERAL --- Kaggle Credit Card Customer Segmentation (8,950 obs.)
+- **R Packages:** `dplyr` (wrangling) $\cdot$ Base R (`stats`, `graphics`)
+- **Statistical Functions:** `t.test()` $\cdot$ `cor.test()` $\cdot$ `kmeans()`
+- **Visualization:** `boxplot()` $\cdot$ `hist()` $\cdot$ `plot()` $\cdot$ `barplot()` $\cdot$ `image()`
+- **Concepts Applied:**
+  - Welch's Two-Sample $t$-Test
+  - Pearson Correlation --- Effect Size vs. Significance
+  - K-Means Clustering (K = 5, standardised variables)
+  - Outlier Detection via IQR Rule

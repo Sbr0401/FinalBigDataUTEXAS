@@ -1,0 +1,184 @@
+\documentclass[10pt, letterpaper]{article}
+\usepackage[margin=0.65in, top=0.55in, bottom=0.55in]{geometry}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{multicol}
+\usepackage{mdframed}
+\usepackage{titlesec}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\setlist{noitemsep, topsep=2pt}
+\hypersetup{colorlinks=true, linkcolor=burnt, urlcolor=burnt}
+
+\definecolor{burnt}{RGB}{191,87,0}
+\definecolor{lightgray}{RGB}{248,248,248}
+\definecolor{darkgray}{RGB}{80,80,80}
+
+\titleformat{\section}{\small\bfseries\color{white}}{}{0em}{}
+\titlespacing{\section}{0pt}{4pt}{2pt}
+
+\setlength{\parskip}{2pt}
+\setlength{\parindent}{0pt}
+
+\newcommand{\sectionbox}[2]{%
+  \begin{mdframed}[backgroundcolor=burnt, linewidth=0pt,
+    innertopmargin=3pt, innerbottommargin=3pt,
+    innerleftmargin=5pt, innerrightmargin=5pt]
+    {\small\bfseries\color{white} #1}
+  \end{mdframed}
+  \vspace{1pt}
+  \begin{mdframed}[backgroundcolor=lightgray, linewidth=0.4pt,
+    linecolor=burnt!30,
+    innertopmargin=4pt, innerbottommargin=4pt,
+    innerleftmargin=6pt, innerrightmargin=6pt]
+    {\footnotesize #2}
+  \end{mdframed}
+  \vspace{4pt}
+}
+
+\newcommand{\result}[2]{\textcolor{burnt}{\textbf{#1}}\; #2}
+
+\begin{document}
+\thispagestyle{empty}
+
+% ── Title ─────────────────────────────────────────────────────────────────────
+\begin{mdframed}[backgroundcolor=burnt, linewidth=0pt,
+  innertopmargin=7pt, innerbottommargin=7pt,
+  innerleftmargin=10pt, innerrightmargin=10pt]
+  {\large\bfseries\color{white} Executive Summary --- Credit Card Customer Behavior Analysis}\\[2pt]
+  {\footnotesize\color{white!85}
+    Big Data \& Data Mining $\cdot$ Dr.\ Kia Teymourian $\cdot$
+    The University of Texas at Austin $\cdot$
+    \texttt{sb74887} $\cdot$ \texttt{ha26947}}
+\end{mdframed}
+
+\vspace{5pt}
+
+% ── Two-column layout ─────────────────────────────────────────────────────────
+\begin{multicols}{2}
+
+\sectionbox{DATASET}{
+  \textbf{Source:} CC GENERAL (Kaggle)\\
+  \textbf{Records:} 8{,}950 credit card customers\\
+  \textbf{Variables:} 18 behavioral \& financial\\
+  \textbf{After cleaning:} 8{,}636 records ($<$4\% removed)\\[2pt]
+  All major financial variables are \textbf{right-skewed}
+  (PURCHASES skew = 8.14; CASH\_ADVANCE = 5.17;
+  BALANCE = 2.39). A log-transform was applied to BALANCE
+  before the $t$-test to meet normality requirements.
+}
+
+\sectionbox{RESEARCH QUESTION}{
+  \textit{``Do distinct patterns of credit card usage carry
+  statistically measurable differences, and can we identify
+  natural customer profiles through clustering?''}\\[2pt]
+  Answered in two parts: \textbf{(1)} Formal hypothesis testing
+  and \textbf{(2)} K-Means unsupervised clustering.
+}
+
+\sectionbox{H1 --- CONFIRMED \checkmark}{
+  \textbf{Claim:} Heavy cash-advance users carry higher balances.\\[2pt]
+  \begin{tabular}{@{}ll@{}}
+    Test:       & Welch's two-sample $t$-test (one-tailed) \\
+    $t$-stat:   & $\approx 28$ \\
+    $df$:       & $\approx 2{,}889$ \\
+    $p$-value:  & $< 2.2\times10^{-16}$ \\
+    Decision:   & \textbf{Reject $H_0$} \\
+  \end{tabular}\\[3pt]
+  \result{Conclusion:}{Heavy CA users carry \textbf{significantly
+  higher} balances. \texttt{CASH\_ADVANCE\_FREQUENCY} is a
+  reliable credit-risk signal.}
+}
+
+\sectionbox{H2 --- DEBUNKED \texttimes}{
+  \textbf{Claim:} Balance strongly predicts credit limit.\\[2pt]
+  \begin{tabular}{@{}ll@{}}
+    Test:       & Pearson correlation \texttt{cor.test()} \\
+    $r$:        & $\approx 0.54$ \\
+    $r^2$:      & $\approx 29\%$ variance explained \\
+    $p$-value:  & $< 2.2\times10^{-16}$ \\
+    Decision:   & \textbf{Debunked} \\
+  \end{tabular}\\[3pt]
+  \result{Key lesson:}{$p < 0.05 \neq$ practical strength.
+  Balance explains only 29\% of credit-limit variance.
+  Banks set limits \textit{prospectively} (income, credit
+  history), not based on current debt.}
+}
+
+\columnbreak
+
+\sectionbox{K-MEANS CLUSTERING (K = 5)}{
+  \textbf{Input:} 8 standardized financial variables\\
+  \textbf{Method:} K-Means, \texttt{nstart=25}, \texttt{set.seed(123)}\\
+  \textbf{K selected by:} Elbow method + interpretability\\[4pt]
+
+  \begin{tabular}{@{}p{3.6cm}@{\;}c@{}}
+    \toprule
+    \textbf{Cluster} & \textbf{\%} \\
+    \midrule
+    Low-Activity Customers  & 34\% \\
+    Regular Purchasers      & 26\% \\
+    Full-Payment Customers  & 18\% \\
+    High CA Users           & 20\% \\
+    High-Value Customers    & 1.3\% \\
+    \bottomrule
+  \end{tabular}\\[4pt]
+
+  \textbf{High CA Users} cluster independently corroborates H1:
+  highest CASH\_ADVANCE\_FREQUENCY $\rightarrow$ highest
+  average BALANCE.
+}
+
+\sectionbox{KEY CORRELATIONS}{
+  \begin{tabular}{@{}p{4.1cm}@{\;}c@{}}
+    \toprule
+    \textbf{Pair} & $r$ \\
+    \midrule
+    PURCHASES $\leftrightarrow$ PAYMENTS   & $+0.60$ \\
+    CASH\_ADVANCE $\leftrightarrow$ BALANCE & $+0.50$ \\
+    PRCFULLPAYMENT $\leftrightarrow$ BALANCE & $-0.32$ \\
+    PURCHASES $\leftrightarrow$ ONEOFF\_PUR & $+0.92$ \\
+    \bottomrule
+  \end{tabular}
+}
+
+\sectionbox{TOOLS \& METHODS}{
+  \begin{tabular}{@{}ll@{}}
+    Language:   & R \\
+    Wrangling:  & \texttt{dplyr} (\texttt{filter}, \texttt{mutate}) \\
+    H1 test:    & \texttt{t.test(var.equal=FALSE)} \\
+    H2 test:    & \texttt{cor.test(method="pearson")} \\
+    Clustering: & \texttt{kmeans(centers=5, nstart=25)} \\
+    Transform:  & \texttt{log1p(BALANCE)} \\
+  \end{tabular}
+}
+
+\sectionbox{OVERALL CONCLUSIONS}{
+  \begin{itemize}
+    \item \textbf{H1 Confirmed:} Cash-advance frequency is a
+      measurable credit-risk predictor.
+    \item \textbf{H2 Debunked:} Statistical significance alone
+      is misleading with large $n$; always report $r^2$.
+    \item \textbf{Clustering:} 5 interpretable profiles reveal
+      distinct behavioral segments; exploratory, not definitive.
+    \item \textbf{Core lesson:} Significance $\neq$ Practical
+      relevance. Effect size matters.
+  \end{itemize}
+}
+
+\end{multicols}
+
+\vspace{2pt}
+\begin{center}
+  \footnotesize\color{darkgray}
+  \rule{0.4\linewidth}{0.3pt}\quad
+  Big Data \& Data Mining $\cdot$ UT Austin $\cdot$
+  \texttt{sb74887} $\cdot$ \texttt{ha26947}
+  \quad\rule{0.4\linewidth}{0.3pt}
+\end{center}
+
+\end{document}
