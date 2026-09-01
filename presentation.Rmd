@@ -48,7 +48,7 @@ knitr::opts_chunk$set(
 library(dplyr)
 
 # ── Load and clean data ────────────────────────────────────────
-cc <- read.csv("../data.csv", stringsAsFactors = FALSE)
+cc <- read.csv("CC_GENERAL.csv", stringsAsFactors = FALSE)
 
 cc_clean <- cc %>%
   filter(!is.na(CREDIT_LIMIT), !is.na(MINIMUM_PAYMENTS)) %>%
@@ -118,6 +118,76 @@ short_clust <- c("Low-\nActivity","Regular\nPurchasers",
                  "Full-\nPayment","High CA\nUsers","High-\nValue")
 clust_cols  <- c("#F0C040","#BF5700","#4A90D9","#E74C3C","#55A868")
 ```
+
+## Table of Contents
+
+\begin{columns}[T]
+\begin{column}{0.5\textwidth}
+\textbf{\color{burnt} Part 1: Hypothesis Testing}
+\begin{itemize}
+  \item[4.] Project Overview
+  \item[5.] Data Wrangling with \texttt{dplyr}
+  \item[6.] H1 Overview
+  \item[7.] H1: Formal Statement
+  \item[8.] H1: Exploratory Plots
+  \item[9.] H1: Welch's $t$-Test
+  \item[10.] H1: Decision \& Interpretation
+  \item[11.] H2: Intuitive Claim
+  \item[12.] H2: Scatterplot \& Distribution
+  \item[13.] H2: Outlier Detection
+  \item[14.] H2: Pearson Correlation
+\end{itemize}
+\end{column}
+\begin{column}{0.5\textwidth}
+\textbf{\color{burnt} Part 2: K-Means Clustering}
+\begin{itemize}
+  \item[15.] Key Correlations Found
+  \item[16.] Correlation Matrix
+  \item[17.] Clustering Extension
+  \item[18.] EDA: Key Findings
+  \item[19.] Why K-Means?
+  \item[20.] K-Means: 5 Customer Groups
+  \item[21.] Conclusions
+  \item[22.] References
+  \item[23.] Project Access (QR)
+\end{itemize}
+\end{column}
+\end{columns}
+
+## Meet the Team
+
+\begin{columns}[T]
+
+\begin{column}{0.48\textwidth}
+\begin{center}
+\includegraphics[width=3.0cm, height=3.0cm, keepaspectratio]{a_crop.png}\\[0.4em]
+\textbf{Hannia Ashley Alvarado Galv\'{a}n}\\[0.2em]
+{\small \texttt{ha26947}}\\[0.4em]
+\begin{tabular}{@{}ll@{}}
+  {\footnotesize School:} & {\footnotesize UNAM ENES Morelia} \\
+  {\footnotesize Major:}  & {\footnotesize Information Technologies} \\
+                          & {\footnotesize for Sciences} \\
+  {\footnotesize State:}  & {\footnotesize Michoac\'{a}n, M\'{e}xico} \\
+\end{tabular}
+\end{center}
+\end{column}
+
+\begin{column}{0.04\textwidth}\end{column}
+
+\begin{column}{0.48\textwidth}
+\begin{center}
+\includegraphics[width=3.0cm, height=3.0cm, keepaspectratio]{b_crop.png}\\[0.4em]
+\textbf{Santiago Basald\'{u}a Ram\'{i}rez}\\[0.2em]
+{\small \texttt{sb74887}}\\[0.4em]
+\begin{tabular}{@{}ll@{}}
+  {\footnotesize School:} & {\footnotesize UT Altamira} \\
+  {\footnotesize Major:}  & {\footnotesize Mechatronics Engineering} \\
+  {\footnotesize State:}  & {\footnotesize Tamaulipas, M\'{e}xico} \\
+\end{tabular}
+\end{center}
+\end{column}
+
+\end{columns}
 
 ## Project Overview
 
@@ -513,3 +583,13 @@ they complement and contextualise the hypothesis-testing findings above.
   - Pearson Correlation --- Effect Size vs. Significance
   - K-Means Clustering (K = 5, standardised variables)
   - Outlier Detection via IQR Rule
+
+## Project Access
+
+\begin{center}
+\vspace{0.3em}
+\large\textbf{Scan for Full Project Materials}\\[0.6em]
+\includegraphics[width=4.5cm]{c.png}\\[0.6em]
+{\small Full report, presentation source, dataset, and study guide:}\\[0.3em]
+\texttt{\small github.com/Sbr0401/FinalBigDataUTEXAS}
+\end{center}
